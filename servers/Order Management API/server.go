@@ -15,8 +15,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type Server struct {
+	store *storage.MemoryStorage
+}
+
+func NewServer(store *storage.MemoryStorage) *Server {
+	return &Server{
+		store: store,
+	}
+}
+
 // Parsing data from JSON. Make new order with status "pending"
-func HandleCreate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		w.WriteHeader(http.StatusMethodNotAllowed) // Need Post
@@ -39,17 +49,20 @@ func HandleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	order := order.CreateOrder(NewOrder)
-	storage.Mtx.Lock()
-	defer storage.Mtx.Unlock()
 
-	storage.Orders[order.ID] = order
+	if err := s.store.AddOrder(order); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg := err.Error()
+		_, _ = w.Write([]byte(msg))
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 	msg := fmt.Sprintf("New order with ID: %s", order.ID)
 	_, _ = w.Write([]byte(msg))
 }
 
-func HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		w.WriteHeader(http.StatusMethodNotAllowed) // need GET
@@ -65,18 +78,17 @@ func HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage.Mtx.RLock()
-	defer storage.Mtx.RUnlock()
-
-	val, ok := storage.Orders[id]
-	if !ok {
+	ord, err := s.store.Get(id)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		msg := fmt.Sprintf("Error the specific id: %s, does not exist", id)
+		msg := err.Error()
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
-	request, err := json.Marshal(val)
+	// Очень сложная система, мы не блокируем тут мьютекст, потому что в Get мы возвращаем копию нашего order
+	// Т.к. мы вернули копию, то в целом пофиг, работаем без мьютекса, и все нормально
+	request, err := json.Marshal(ord)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("Error with convert request to JSON"))
@@ -88,7 +100,7 @@ func HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
 	w.Write(request)
 }
 
-func HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		w.Header().Set("Allow", "PATCH")
 		w.WriteHeader(http.StatusMethodNotAllowed) // need PATCH
@@ -100,17 +112,6 @@ func HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 	if err := uuid.Validate(id); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Error with id's format: %s. Please check id.", id)
-		_, _ = w.Write([]byte(msg))
-		return
-	}
-
-	storage.Mtx.Lock()
-	defer storage.Mtx.Unlock()
-
-	ord, ok := storage.Orders[id]
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		msg := fmt.Sprintf("Error the specific id: %s, does not exist", id)
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -129,23 +130,19 @@ func HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !order.ChangeStatus(ord.Status, status.Status) {
+	if err := s.store.UpdateStatus(id, status.Status); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		msg := fmt.Sprintf("Can't use new status (%s) right now. You have status: %s", status.Status, storage.Orders[id].Status)
+		msg := err.Error()
 		_, _ = w.Write([]byte(msg))
 		return
 	}
-
-	ord.Status = status.Status
 
 	w.WriteHeader(http.StatusOK)
 	msg := fmt.Sprintf("Succesfull. New status is %s", status.Status)
 	_, _ = w.Write([]byte(msg))
 }
 
-func HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
-	activeOrders := make([]*order.Order, 0)
-
+func (s *Server) HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -161,14 +158,7 @@ func HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage.Mtx.RLock()
-	defer storage.Mtx.RUnlock()
-
-	for _, value := range storage.Orders {
-		if value.Status == queryStatus {
-			activeOrders = append(activeOrders, value)
-		}
-	}
+	activeOrders := s.store.GetByStatus(queryStatus)
 
 	response, err := json.Marshal(activeOrders)
 	if err != nil {
@@ -182,7 +172,7 @@ func HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 	w.Write(response) // json.Marshal возвращает []byte, поэтому нет каста
 }
 
-func HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -198,30 +188,19 @@ func HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage.Mtx.Lock()
-	defer storage.Mtx.Unlock()
-
-	myOrder, ok := storage.Orders[id]
-	if !ok {
+	err := s.store.CancelOrder(id)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		msg := fmt.Sprintf("Error the specific id: %s, does not exist", id)
+		msg := err.Error()
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
-	if myOrder.Status != order.StatusPending {
-		w.WriteHeader(http.StatusBadRequest)
-		msg := fmt.Sprintf("You can't cancel your order, because your status is %s", myOrder.Status)
-		_, _ = w.Write([]byte(msg))
-		return
-	}
-
-	myOrder.Status = order.StatusCancelled
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("You have cancelled your order"))
 }
 
-func HandleStats(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -229,23 +208,7 @@ func HandleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats := order.CreateStats()
-
-	storage.Mtx.RLock()
-	for _, value := range storage.Orders {
-		stats.TotalOrders++
-		stats.StatusCounts[value.Status]++
-		if value.Status != order.StatusCancelled {
-			stats.TotalSum += value.Total
-		}
-	}
-	storage.Mtx.RUnlock()
-
-	if stats.TotalOrders > 0 {
-		stats.AverageCheck = stats.TotalSum / float64(stats.TotalOrders)
-	} else {
-		stats.AverageCheck = 0
-	}
+	stats := s.store.GetAllStats()
 
 	response, err := json.Marshal(stats)
 	if err != nil {
@@ -260,6 +223,9 @@ func HandleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	store := storage.NewStorage()
+	myServer := NewServer(store)
+
 	// Создаем не как http.ListenAndServe, т.к. в том случае таймауты бесконечные
 	// Тут мы сами настраиваем таймауты
 	srv := &http.Server{
@@ -272,12 +238,12 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	http.HandleFunc("/order/create", HandleCreate)
-	http.HandleFunc("/order/{id}", HandleCheckOrder)
-	http.HandleFunc("/order/{id}/status", HandleChangeStatus)
-	http.HandleFunc("/order/active", HandleActiveOrders)
-	http.HandleFunc("/order/{id}/cancel", HandleCancelOrder)
-	http.HandleFunc("/stats", HandleStats)
+	http.HandleFunc("/order/create", myServer.HandleCreate)
+	http.HandleFunc("/order/{id}", myServer.HandleCheckOrder)
+	http.HandleFunc("/order/{id}/status", myServer.HandleChangeStatus)
+	http.HandleFunc("/order/active", myServer.HandleActiveOrders)
+	http.HandleFunc("/order/{id}/cancel", myServer.HandleCancelOrder)
+	http.HandleFunc("/stats", myServer.HandleStats)
 
 	// В горутине, чтобы не блокался мейн
 	go func() {

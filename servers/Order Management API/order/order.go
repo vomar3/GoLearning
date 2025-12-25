@@ -18,21 +18,6 @@ const (
 	StatusCancelled string = "cancelled"
 )
 
-// Validate string: letters only
-func ValidateString(str string) bool {
-	if str == "" {
-		return false
-	}
-
-	for _, symbol := range str {
-		if !unicode.IsLetter(symbol) && !unicode.IsSpace(symbol) {
-			return false
-		}
-	}
-
-	return true
-}
-
 type OrderItem struct {
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
@@ -62,6 +47,21 @@ type StatsResponse struct {
 	TotalSum     float64        `json:"total_sum"`
 	AverageCheck float64        `json:"average_check"`
 	StatusCounts map[string]int `json:"status_counts"`
+}
+
+// Validate string: letters only
+func ValidateString(str string) bool {
+	if str == "" {
+		return false
+	}
+
+	for _, symbol := range str {
+		if !unicode.IsLetter(symbol) && !unicode.IsSpace(symbol) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Check data for a separate dish
