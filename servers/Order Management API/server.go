@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,12 +17,17 @@ import (
 )
 
 type Server struct {
-	store *storage.MemoryStorage
+	store  *storage.MemoryStorage
+	logger *slog.Logger
+	// info = просто какая-то информация, мы создали, отменили, измениили и т.д.
+	// warn = ошибка со стороны клиента: прислал не то. Сервер работает корректно
+	// error = ошибка на стороне сервака: не смогли в json, что-то упало
 }
 
-func NewServer(store *storage.MemoryStorage) *Server {
+func NewServer(store *storage.MemoryStorage, logger *slog.Logger) *Server {
 	return &Server{
-		store: store,
+		store:  store,
+		logger: logger,
 	}
 }
 
@@ -37,6 +43,7 @@ func (s *Server) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	var NewOrder order.CreateOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&NewOrder); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		s.logger.Error("failed to decode json", "error", err, "method", "HandleCreate")
 		_, _ = w.Write([]byte("Error with parse JSON"))
 		return
 	}
@@ -44,6 +51,7 @@ func (s *Server) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if !NewOrder.Validate() {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Bad Request %+v", NewOrder)
+		s.logger.Warn("invalid input data", "error", msg, "method", "HandleCreate")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -52,12 +60,14 @@ func (s *Server) HandleCreate(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.AddOrder(order); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		s.logger.Error("failed to save order", "order_id", order.ID, "error", err, "method", "HandleCreate")
 		msg := err.Error()
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	s.logger.Info("order created", "id", order.ID, "client", order.Client, "total", order.Total, "method", "HandleCreate")
 	msg := fmt.Sprintf("New order with ID: %s", order.ID)
 	_, _ = w.Write([]byte(msg))
 }
@@ -74,6 +84,7 @@ func (s *Server) HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
 	if err := uuid.Validate(id); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Error with id's format: %s. Please check id.", id)
+		s.logger.Warn("invalid input id", "id", id, "error", msg, "method", "HandleCheckOrder")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -82,22 +93,25 @@ func (s *Server) HandleCheckOrder(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := err.Error()
+		s.logger.Warn("order not found", "id", id, "error", msg, "method", "HandleCheckOrder")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
-	// Очень сложная система, мы не блокируем тут мьютекст, потому что в Get мы возвращаем копию нашего order
-	// Т.к. мы вернули копию, то в целом пофиг, работаем без мьютекса, и все нормально
+	// s.store.Get returns a copy, so json.Marshal is safe without lock.
 	request, err := json.Marshal(ord)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Error with convert request to JSON"))
+		msg := "Error with convert request to JSON"
+		s.logger.Error("failed to make JSON", "error", msg, "method", "HandleCheckOrder")
+		_, _ = w.Write([]byte(msg))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(request)
+	// Не пишется логгирование в гете, т.к. станет шумом в логах
 }
 
 func (s *Server) HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +126,7 @@ func (s *Server) HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 	if err := uuid.Validate(id); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Error with id's format: %s. Please check id.", id)
+		s.logger.Warn("indalid input id", "id", id, "error", msg, "method", "HandleChangeStatus")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -119,13 +134,16 @@ func (s *Server) HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 	var status order.StatusUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&status); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Error with convert from JSON"))
+		msg := "Error with convert from JSON"
+		s.logger.Error("failed to decode JSON", "error", msg, "method", "HandleChangeStatus")
+		_, _ = w.Write([]byte(msg))
 		return
 	}
 
 	if !status.Validate() {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Bad status: %s", status)
+		s.logger.Warn("invalid input data", "error", msg, "method", "HandleChangeStatus")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -133,12 +151,14 @@ func (s *Server) HandleChangeStatus(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.UpdateStatus(id, status.Status); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := err.Error()
+		s.logger.Warn("invalid input data", "error", msg, "method", "HandleChangeStatus")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	msg := fmt.Sprintf("Succesfull. New status is %s", status.Status)
+	s.logger.Info("status changed", "msg", msg, "method", "HandleChangeStatus")
 	_, _ = w.Write([]byte(msg))
 }
 
@@ -154,6 +174,7 @@ func (s *Server) HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 	if !order.ActiveOrders(queryStatus) {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Bad status: %s. Need active status ('pending', 'ready', 'cooking')", queryStatus)
+		s.logger.Warn("invalid input status", "status", queryStatus, "error", msg, "method", "HandleActiveOrders")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -163,7 +184,9 @@ func (s *Server) HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 	response, err := json.Marshal(activeOrders)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Error with convert request to JSON"))
+		msg := "Error with convert request to JSON"
+		s.logger.Error("failed to code to JSON", "error", msg, "method", "HandleActiveOrders")
+		_, _ = w.Write([]byte(msg))
 		return
 	}
 
@@ -184,6 +207,7 @@ func (s *Server) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	if err := uuid.Validate(id); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := fmt.Sprintf("Error with id's format: %s. Please check id.", id)
+		s.logger.Warn("invalid input id", "id", id, "error", msg, "method", "HandleCancelOrder")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
@@ -192,12 +216,15 @@ func (s *Server) HandleCancelOrder(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		msg := err.Error()
+		s.logger.Warn("invalid input data", "error", msg, "method", "HandleCancelOrder")
 		_, _ = w.Write([]byte(msg))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("You have cancelled your order"))
+	msg := fmt.Sprintf("You have cancelled your order, id : %s", id)
+	s.logger.Info("order canceled", "order_id", id, "method", "HandleCancelOrder")
+	_, _ = w.Write([]byte(msg))
 }
 
 func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +240,9 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 	response, err := json.Marshal(stats)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("Error with convert request to JSON"))
+		msg := "Error with convert request to JSON"
+		s.logger.Error("Failed to code to JSON", "error", msg, "method", "HandleStats")
+		_, _ = w.Write([]byte(msg))
 		return
 	}
 
@@ -223,8 +252,10 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 	store := storage.NewStorage()
-	myServer := NewServer(store)
+	myServer := NewServer(store, logger)
 
 	// Создаем не как http.ListenAndServe, т.к. в том случае таймауты бесконечные
 	// Тут мы сами настраиваем таймауты
@@ -247,9 +278,9 @@ func main() {
 
 	// В горутине, чтобы не блокался мейн
 	go func() {
-		fmt.Println("The server is starting on :9091")
+		logger.Info("server starting", "addr", ":9091")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Listen error: %s\n", err)
+			logger.Info("Listen error:", "error", err)
 		}
 	}()
 
@@ -257,7 +288,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	fmt.Println("\nShutting down server...")
+	logger.Info("Shutting down server...")
 
 	// даем 5 секунд на выполнение оставшихся задач
 	// закончились раньше = сразу закрывается сервер
@@ -266,8 +297,8 @@ func main() {
 
 	// Закрываем сервак
 	if err := srv.Shutdown(ctx); err != nil {
-		fmt.Printf("Server forced to shutdown: %v\n", err)
+		logger.Info("Server forced to shutdown:", "error", err)
 	}
 
-	fmt.Println("Server exiting")
+	logger.Info("Server exiting")
 }
