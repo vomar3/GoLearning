@@ -266,7 +266,16 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
-	connStr := "postgres://postgres:1234@localhost:5432/postgres"
+
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+	dbName := os.Getenv("DB_NAME")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:5432/%s", dbUser, dbPass, dbHost, dbName)
 
 	store, err := storage.NewPostgresStorage(connStr)
 	if err != nil {
