@@ -17,14 +17,14 @@ import (
 )
 
 type Server struct {
-	store  *storage.MemoryStorage
+	store  storage.Storage
 	logger *slog.Logger
 	// info = просто какая-то информация, мы создали, отменили, измениили и т.д.
 	// warn = ошибка со стороны клиента: прислал не то. Сервер работает корректно
 	// error = ошибка на стороне сервака: не смогли в json, что-то упало
 }
 
-func NewServer(store *storage.MemoryStorage, logger *slog.Logger) *Server {
+func NewServer(store storage.Storage, logger *slog.Logger) *Server {
 	return &Server{
 		store:  store,
 		logger: logger,
@@ -179,7 +179,13 @@ func (s *Server) HandleActiveOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	activeOrders := s.store.GetByStatus(queryStatus)
+	activeOrders, err := s.store.GetByStatus(queryStatus)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg := "Error with get orders by status"
+		s.logger.Error("Error with get", "error", msg, "method", "HandleActiveOrders")
+		_, _ = w.Write([]byte(msg))
+	}
 
 	response, err := json.Marshal(activeOrders)
 	if err != nil {
@@ -235,7 +241,13 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats := s.store.GetAllStats()
+	stats, err := s.store.GetAllStats()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg := "couldn't collect the data"
+		s.logger.Error(msg, "error", err, "method", "HandleStats")
+		_, _ = w.Write([]byte(msg))
+	}
 
 	response, err := json.Marshal(stats)
 	if err != nil {
@@ -254,7 +266,15 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
-	store := storage.NewStorage()
+	connStr := "postgres://postgres:1234@localhost:5432/postgres"
+
+	store, err := storage.NewPostgresStorage(connStr)
+	if err != nil {
+		// Если не смогли подключиться — нет смысла запускать сервер, падаем сразу
+		logger.Error("failed to connect to db", "error", err)
+		os.Exit(1)
+	}
+
 	myServer := NewServer(store, logger)
 
 	// Создаем не как http.ListenAndServe, т.к. в том случае таймауты бесконечные
