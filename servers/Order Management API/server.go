@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/google/uuid"
 )
 
@@ -264,6 +266,7 @@ func (s *Server) HandleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	_ = godotenv.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
