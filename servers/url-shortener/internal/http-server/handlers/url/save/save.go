@@ -54,13 +54,14 @@ func (r *Request) Validate() bool {
 func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		const op = "handlers.url.save.New"
 		var data Request
 
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			msg := fmt.Sprintf("Can't unmarshal data from json: %v", err)
-			log.Error("json decode failed", "error", msg, "method", "New")
+			log.Error("json decode failed", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -74,7 +75,7 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			msg := "bad validate data"
-			log.Error("validate failed", "error", msg, "method", "New")
+			log.Error("validate failed", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -90,7 +91,7 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			msg := fmt.Sprintf("error with save data: %v", err)
-			log.Error("save url failed", "error", msg, "method", "New")
+			log.Error("save url failed", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -104,7 +105,7 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			msg := fmt.Sprintf("error with marshal data: %v", err)
-			slog.Error("json marshal failed", "error", msg, "method", "New")
+			slog.Error("json marshal failed", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -114,7 +115,7 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 			return
 		}
 
-		log.Info("url saved", "alias:", alias)
+		log.Info("url saved", slog.String("alias", alias), slog.String("op", op))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 

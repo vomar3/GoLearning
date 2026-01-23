@@ -23,13 +23,14 @@ type DeleterUrl interface {
 
 func Delete(log *slog.Logger, deleterUrl DeleterUrl) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const op = "handlers.url.delete.Delete"
 		alias := chi.URLParam(r, "alias")
 
 		if alias == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			msg := "bad link nothing to delete"
-			log.Error("can't delete", "error", msg, "method", "Delete")
+			log.Error("can't delete", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -44,7 +45,7 @@ func Delete(log *slog.Logger, deleterUrl DeleterUrl) http.HandlerFunc {
 
 			if errors.Is(err, postgres.ErrNotFound) {
 				msg := "link not found"
-				log.Warn(msg, "method", "Delete")
+				log.Warn(msg, slog.String("method", r.Method), slog.String("op", op))
 				json.NewEncoder(w).Encode(Response{
 					Status: "Warn",
 					Error:  msg,
@@ -55,7 +56,7 @@ func Delete(log *slog.Logger, deleterUrl DeleterUrl) http.HandlerFunc {
 
 			w.WriteHeader(http.StatusInternalServerError)
 			msg := fmt.Sprintf("Delete: failed to delete url: %v", err)
-			log.Error("failed to delete url", "error", err, "method", "Delete")
+			log.Error("failed to delete url", slog.String("error", err.Error()), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -66,7 +67,7 @@ func Delete(log *slog.Logger, deleterUrl DeleterUrl) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		log.Info("deleted url", "method", "Delete")
+		log.Info("deleted url", slog.String("method", r.Method), slog.String("op", op))
 		json.NewEncoder(w).Encode(Response{
 			Status: "OK",
 			Error:  "",

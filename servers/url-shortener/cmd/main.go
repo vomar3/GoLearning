@@ -59,6 +59,11 @@ func main() {
 	router.Use(middleware.Recoverer)
 
 	router.Post("/url", save.New(log, storageService))
+	router.Get("/url", func(w http.ResponseWriter, r *http.Request) {
+		msg := "The method does not exist with GET"
+		http.Error(w, msg, 405)
+		log.Error("Error with method", slog.String("error", msg), slog.String("method", "main"))
+	})
 	router.Get("/{alias}", redirect.New(log, storageService))
 	router.Delete("/delete/{alias}", delete.Delete(log, storageService))
 

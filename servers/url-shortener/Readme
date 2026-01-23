@@ -1,0 +1,10 @@
+# Сервис по сокращению ссылок
+
+## Запуск:
+- скачать docker-compose.prod.yml
+- docker-compose up
+
+## Команды для работы с сервисом:
+- Post запрос http://localhost:8080/url с параметрами {"long_url": "https://github.com","short_code": "git"} - создает укороченную ссылку для url
+- Get запрос http://localhost:8080/git делает переход на https://github.com
+- Delete запрос http://localhost:8080/delete/git удаляет из базы данных сокращение "git"

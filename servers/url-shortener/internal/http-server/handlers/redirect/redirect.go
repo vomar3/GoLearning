@@ -24,13 +24,14 @@ type URLGetter interface {
 
 func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const op = "handlers.redirect.New"
 		alias := chi.URLParam(r, "alias")
 
 		if alias == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			msg := "bad alias"
-			log.Error("0 length alias", "error", msg, "method", "New")
+			log.Error("0 length alias", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
@@ -48,7 +49,7 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 			if errors.Is(err, pgx.ErrNoRows) {
 				w.WriteHeader(http.StatusNotFound)
 				msg := fmt.Sprintf("Url wasn't found: %v", err)
-				log.Error("Url wasn't found", "error", err, "method", "New")
+				log.Error("Url wasn't found", slog.String("error", err.Error()), slog.String("method", r.Method), slog.String("op", op))
 				json.NewEncoder(w).Encode(Response{
 					Status: "Error",
 					Error:  msg,
@@ -60,7 +61,7 @@ func New(log *slog.Logger, urlGetter URLGetter) http.HandlerFunc {
 
 			w.WriteHeader(http.StatusInternalServerError)
 			msg := fmt.Sprintf("failed to get URL: %v", err)
-			log.Error("failed to get URL", "error", err, "method", "New")
+			log.Error("failed to get URL", slog.String("error", err.Error()), slog.String("method", r.Method), slog.String("op", op))
 			json.NewEncoder(w).Encode(Response{
 				Status: "Error",
 				Error:  msg,
