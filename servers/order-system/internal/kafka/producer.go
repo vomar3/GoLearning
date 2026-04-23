@@ -23,8 +23,9 @@ func NewProducer(brokerAddr string, topic string) *Producer {
 	}
 }
 
-func (p *Producer) SendMessage(ctx context.Context, message []byte) error {
+func (p *Producer) SendMessage(ctx context.Context, key string, message []byte) error {
 	err := p.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(key),
 		Value: message,
 	})
 

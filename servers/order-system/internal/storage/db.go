@@ -27,8 +27,9 @@ func (db *DB) Init(ctx context.Context) error {
 			id TEXT PRIMARY KEY,
 			item TEXT NOT NULL,
 			price INT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'Processed',
-			created_at TIMESTAMP DEFAULT NOW()
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 		);
 	`
 
@@ -43,13 +44,18 @@ func (db *DB) SaveOrder(ctx context.Context, order models.OrderRequest) error {
 	query := `
 		INSERT INTO orders (id, item, price, status)
 		VALUES (@id, @item, @price, @status)
+		ON CONFLICT (id) DO UPDATE
+		SET item = EXCLUDED.item,
+			price = EXCLUDED.price,
+			status = EXCLUDED.status,
+			updated_at = NOW()
 	`
 
 	args := pgx.NamedArgs{
 		"id":     order.ID,
 		"item":   order.Item,
 		"price":  order.Price,
-		"status": "Processed",
+		"status": string(models.OrderStatusProcessed),
 	}
 
 	if _, err := db.conn.Exec(ctx, query, args); err != nil {
@@ -59,13 +65,59 @@ func (db *DB) SaveOrder(ctx context.Context, order models.OrderRequest) error {
 	return nil
 }
 
-func (db *DB) GetOrder(ctx context.Context, id string) (models.OrderRequest, error) {
+func (db *DB) ProcessOrder(ctx context.Context, order models.OrderRequest) error {
+	tx, err := db.conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("db.ProcessOrder: failed to begin transaction: %w", err)
+	}
+
+	args := pgx.NamedArgs{
+		"id":     order.ID,
+		"item":   order.Item,
+		"price":  order.Price,
+		"status": string(models.OrderStatusProcessing),
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO orders (id, item, price, status)
+		VALUES (@id, @item, @price, @status)
+		ON CONFLICT (id) DO UPDATE
+		SET item = EXCLUDED.item,
+			price = EXCLUDED.price,
+			status = EXCLUDED.status,
+			updated_at = NOW()
+	`, args); err != nil {
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("db.ProcessOrder: failed to mark order processing: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE orders
+		SET status = @status,
+			updated_at = NOW()
+		WHERE id = @id
+	`, pgx.NamedArgs{
+		"id":     order.ID,
+		"status": string(models.OrderStatusProcessed),
+	}); err != nil {
+		_ = tx.Rollback(ctx)
+		return fmt.Errorf("db.ProcessOrder: failed to mark order processed: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("db.ProcessOrder: failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (db *DB) GetOrder(ctx context.Context, id string) (models.Order, error) {
 	query := `
-		SELECT id, item, price FROM orders
+		SELECT id, item, price, status, created_at, updated_at FROM orders
 		WHERE id = @id
 	`
 
-	var model models.OrderRequest
+	var model models.Order
 
 	args := pgx.NamedArgs{
 		"id": id,
@@ -75,14 +127,17 @@ func (db *DB) GetOrder(ctx context.Context, id string) (models.OrderRequest, err
 		&model.ID,
 		&model.Item,
 		&model.Price,
+		&model.Status,
+		&model.CreatedAt,
+		&model.UpdatedAt,
 	)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return models.OrderRequest{}, pgx.ErrNoRows
+			return models.Order{}, pgx.ErrNoRows
 		}
 
-		return models.OrderRequest{}, fmt.Errorf("Error with get order with id: %w", err)
+		return models.Order{}, fmt.Errorf("db.GetOrder: failed to get order: %w", err)
 	}
 
 	return model, nil

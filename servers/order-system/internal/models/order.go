@@ -1,11 +1,32 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
+
+type OrderStatus string
+
+const (
+	OrderStatusPending    OrderStatus = "pending"
+	OrderStatusProcessing OrderStatus = "processing"
+	OrderStatusProcessed  OrderStatus = "processed"
+	OrderStatusFailed     OrderStatus = "failed"
+)
 
 type OrderRequest struct {
 	ID    string `json:"id"`
 	Item  string `json:"item"`
 	Price int    `json:"price"`
+}
+
+type Order struct {
+	ID        string      `json:"id"`
+	Item      string      `json:"item"`
+	Price     int         `json:"price"`
+	Status    OrderStatus `json:"status"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 type OrderResponse struct {

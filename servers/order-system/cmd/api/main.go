@@ -5,49 +5,43 @@ import (
 	"log/slog"
 	"net/http"
 	"order-system/cmd/api/handlers"
+	"order-system/internal/config"
 	"order-system/internal/kafka"
 	"order-system/internal/storage"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-type OrderRequest struct {
-	ID    string `json:"id"`
-	Item  string `json:"item"`
-	Price int    `json:"price"`
-}
-
-type OrderResponse struct {
-	Status string `json:"status"`
-	Msg    string `json:"msg,omitempty"`
-}
-
 func main() {
 	op := "api.main"
+	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	producer := kafka.NewProducer("localhost:9092", "orders")
+	producer := kafka.NewProducer(cfg.KafkaBroker, cfg.OrdersTopic)
 	defer producer.Close()
 
-	db, err := storage.NewDB(context.Background(), "postgres://user:password@localhost:5444/orders")
+	db, err := storage.NewDB(context.Background(), cfg.PostgresDSN)
 	if err != nil {
 		logger.Error("failed to connect to db", slog.String("error", err.Error()), slog.String("op", op))
 		os.Exit(1)
 	}
-
 	defer db.Close(context.Background())
+
+	if err := db.Init(context.Background()); err != nil {
+		logger.Error("failed to init db", slog.String("error", err.Error()), slog.String("op", op))
+		os.Exit(1)
+	}
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
 	srv := &http.Server{
-		Addr:    ":8080", // Надо конфиг позже написать
+		Addr:    ":" + cfg.HTTPPort,
 		Handler: router,
 	}
 
@@ -57,10 +51,10 @@ func main() {
 	router.Get("/orders/{id}", myHandler.GetOrderByID)
 	router.Delete("/orders/{id}", myHandler.DeleteOrderByID)
 
-	logger.Info("starting server", slog.String("port", "8080"))
+	logger.Info("starting server", slog.String("port", cfg.HTTPPort))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("main: error with statring server", slog.String("error", err.Error()))
+			logger.Error("main: error with starting server", slog.String("error", err.Error()))
 		}
 	}()
 
@@ -69,7 +63,7 @@ func main() {
 	<-quit
 	logger.Info("Server is shutting down...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

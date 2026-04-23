@@ -1,26 +1,34 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"order-system/internal/kafka"
 	"order-system/internal/models"
-	"order-system/internal/storage"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 )
 
-type OrderHandler struct {
-	producer *kafka.Producer
-	log      *slog.Logger
-	db       *storage.DB
+type OrderProducer interface {
+	SendMessage(ctx context.Context, key string, message []byte) error
 }
 
-func NewOrderHandler(producer *kafka.Producer, log *slog.Logger, db *storage.DB) *OrderHandler {
+type OrderStore interface {
+	GetOrder(ctx context.Context, id string) (models.Order, error)
+	DeleteOrder(ctx context.Context, id string) error
+}
+
+type OrderHandler struct {
+	producer OrderProducer
+	log      *slog.Logger
+	db       OrderStore
+}
+
+func NewOrderHandler(producer OrderProducer, log *slog.Logger, db OrderStore) *OrderHandler {
 	return &OrderHandler{
 		producer: producer,
 		log:      log,
@@ -70,7 +78,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.producer.SendMessage(r.Context(), bytes); err != nil {
+	if err = h.producer.SendMessage(r.Context(), JSONdata.ID, bytes); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		msg := fmt.Sprintf("Error with send message: %v", err)
 		h.log.Error("Send message", slog.String("error", msg), slog.String("method", r.Method), slog.String("op", op))
@@ -122,11 +130,7 @@ func (h *OrderHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	h.log.Info("order was got", slog.String("method", r.Method), slog.String("op", op))
-	json.NewEncoder(w).Encode(models.OrderRequest{
-		ID:    model.ID,
-		Item:  model.Item,
-		Price: model.Price,
-	})
+	json.NewEncoder(w).Encode(model)
 
 }
 
