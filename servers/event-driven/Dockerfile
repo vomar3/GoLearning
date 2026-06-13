@@ -15,6 +15,8 @@ WORKDIR /root/
 
 COPY --from=builder /app/main .
 
+COPY --from=builder /app/migrations ./migrations
+
 EXPOSE 9090 8080
 
 CMD ["./main"]

@@ -26,4 +26,10 @@ func main() {
 	defer db.Close()
 
 	logger.Info("Connect to db was successful", slog.String("op", op))
+
+	err = storage.RunMigrations(db, "./migrations")
+	if err != nil {
+		logger.Error("failed to migrate db", slog.String("error", err.Error()), slog.String("op", op))
+		os.Exit(1)
+	}
 }
