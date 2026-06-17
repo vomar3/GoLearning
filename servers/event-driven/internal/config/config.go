@@ -32,7 +32,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("Load: %w", err)
 	}
 
-	cfg.PostgreDSN = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbPort, dbUser, dbPass, dbName)
+	cfg.PostgreDSN = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPass, dbHost, dbPort, dbName)
 
 	cfg.RedisAddr = GetEnvFallback("REDIS_ADDR", "localhost:6379")
 	cfg.KafkaBroker = GetEnvFallback("KAFKA_BROKERS", "localhost:9092")

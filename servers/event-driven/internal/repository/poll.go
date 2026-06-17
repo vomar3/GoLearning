@@ -2,17 +2,19 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"event-driven/internal/models"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type pollRepositoryImpl struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-func NewPollRepository(db *sql.DB) models.PollRepository {
+func NewPollRepository(db *pgxpool.Pool) models.PollRepository {
 	return &pollRepositoryImpl{
 		db: db,
 	}
@@ -28,7 +30,7 @@ func (r *pollRepositoryImpl) Create(ctx context.Context, title, description stri
 	var newID string
 
 	// Getting only one row after insertion
-	err := r.db.QueryRowContext(ctx, query, title, description).Scan(&newID)
+	err := r.db.QueryRow(ctx, query, title, description).Scan(&newID)
 	if err != nil {
 		return "", fmt.Errorf("Create: row insertion error: %w", err)
 	}
@@ -46,9 +48,9 @@ func (r *pollRepositoryImpl) GetByID(ctx context.Context, id string) (*models.Po
 
 	var data models.Poll
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&data.ID, &data.Title, &data.Description, &data.IsActive, &data.CreatedAt)
+	err := r.db.QueryRow(ctx, query, id).Scan(&data.ID, &data.Title, &data.Description, &data.IsActive, &data.CreatedAt)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("GetByID: User with %s ID not found", id)
 		}
 
@@ -68,9 +70,9 @@ func (r *pollRepositoryImpl) Update(ctx context.Context, id, title, description 
 
 	var data models.Poll
 
-	err := r.db.QueryRowContext(ctx, query, title, description, isActive, id).Scan(&data.ID, &data.Title, &data.Description, &data.IsActive, &data.CreatedAt)
+	err := r.db.QueryRow(ctx, query, title, description, isActive, id).Scan(&data.ID, &data.Title, &data.Description, &data.IsActive, &data.CreatedAt)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("Update: User with %s ID not found", id)
 		}
 
@@ -87,15 +89,12 @@ func (r *pollRepositoryImpl) Delete(ctx context.Context, id string) error {
 		WHERE id = $1
 	`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := r.db.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("Delete: error deleting by id: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("Delete: failed to get the number of deleted rows: %w", err)
-	}
+	rowsAffected := result.RowsAffected()
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("Delete: User with %s ID not found", id)
@@ -116,7 +115,7 @@ func (r *pollRepositoryImpl) List(ctx context.Context, limit, offset int, onlyAc
 
 	var polls []*models.Poll
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset, onlyActive)
+	rows, err := r.db.Query(ctx, query, limit, offset, onlyActive)
 	if err != nil {
 		return nil, fmt.Errorf("List: error with getting data: %w", err)
 	}

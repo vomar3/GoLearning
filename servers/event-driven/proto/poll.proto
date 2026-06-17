@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package poll;
+
+option go_package = "event-driven/proto/gen/poll;poll";
+
+import "google/protobuf/empty.proto";
+
+service PollService {
+    rpc CreatePoll(CreatePollRequest) returns (CreatePollResponse);
+    rpc GetPoll(GetPollRequest) returns (GetPollResponse);
+    rpc UpdatePoll(UpdatePollRequest) returns (UpdatePollResponse);
+    rpc DeletePoll(DeletePollRequest) returns (google.protobuf.Empty);
+    rpc ListPoll(ListPollRequest) returns (ListPollResponse);
+}
+
+message Poll {
+    string id = 1;
+    string title = 2;
+    string description = 3;
+    bool is_active = 4;
+    string created_at = 5;
+}
+
+message CreatePollRequest {
+    string title = 1;
+    string description = 2;
+}
+
+message CreatePollResponse {
+    string id = 1;
+}
+
+message GetPollRequest {
+    string id = 1;
+}
+
+message GetPollResponse {
+    Poll poll = 1;
+}
+
+message UpdatePollRequest {
+    string id = 1;
+    string title = 2;
+    string description = 3;
+    bool is_active = 4;
+}
+
+message UpdatePollResponse {
+    Poll poll = 1;
+}
+
+message DeletePollRequest {
+    string id = 1;
+}
+
+message ListPollRequest {
+    int32 limit = 1;
+    int32 offset = 2;
+    bool only_active = 3;
+}
+
+message ListPollResponse {
+    repeated Poll polls = 1;
+}

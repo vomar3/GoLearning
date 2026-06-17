@@ -1,15 +1,32 @@
 package main
 
 import (
+	"database/sql"
+	"event-driven/internal/api/grpc"
 	"event-driven/internal/config"
+	"event-driven/internal/repository"
 	"event-driven/internal/storage"
+	"fmt"
 	"log/slog"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
+
+	poll "event-driven/proto"
+
+	"github.com/joho/godotenv"
+	grpcserver "google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
 	op := "main"
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Error loading .env file")
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -27,9 +44,50 @@ func main() {
 
 	logger.Info("Connect to db was successful", slog.String("op", op))
 
-	err = storage.RunMigrations(db, "./migrations")
+	sqlDB, err := sql.Open("pgx", cfg.PostgreDSN)
+	if err != nil {
+		logger.Error("failed to open sql connection for migrations", slog.String("error", err.Error()), slog.String("op", op))
+		os.Exit(1)
+	}
+
+	defer sqlDB.Close()
+
+	err = storage.RunMigrations(sqlDB, "./migrations")
 	if err != nil {
 		logger.Error("failed to migrate db", slog.String("error", err.Error()), slog.String("op", op))
 		os.Exit(1)
 	}
+
+	repo := repository.NewPollRepository(db)
+	pollServer := grpc.NewPollServer(repo)
+	// create gRPC-server
+	grpcServer := grpcserver.NewServer()
+	// registration
+	poll.RegisterPollServiceServer(grpcServer, pollServer)
+
+	// for grpcurl
+	reflection.Register(grpcServer)
+
+	listener, err := net.Listen("tcp", cfg.GRPCPort)
+	if err != nil {
+		logger.Error("failed to listen", slog.String("error", err.Error()), slog.String("op", op))
+		os.Exit(1)
+	}
+
+	go func() {
+		logger.Info("gRPC server is running")
+		if err := grpcServer.Serve(listener); err != nil {
+			logger.Error("failed to serve", slog.String("error", err.Error()), slog.String("op", op))
+			os.Exit(1)
+		}
+	}()
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down gracefully...")
+	grpcServer.GracefulStop()
+	logger.Info("Server stopped")
 }
