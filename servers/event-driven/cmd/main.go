@@ -15,7 +15,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	poll "event-driven/proto"
+	option "event-driven/proto/option"
+	poll "event-driven/proto/poll"
 
 	"github.com/joho/godotenv"
 	grpcserver "google.golang.org/grpc"
@@ -76,6 +77,10 @@ func main() {
 	grpcServer := grpcserver.NewServer()
 	// registration
 	poll.RegisterPollServiceServer(grpcServer, pollServer)
+
+	optionRepo := repository.NewOptionRepository(db)
+	optionServer := grpc.NewOptionServer(optionRepo)
+	option.RegisterOptionServiceServer(grpcServer, optionServer)
 
 	// for grpcurl
 	reflection.Register(grpcServer)

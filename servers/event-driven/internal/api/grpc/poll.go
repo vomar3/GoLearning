@@ -3,7 +3,7 @@ package grpc
 import (
 	"context"
 	"event-driven/internal/models"
-	poll "event-driven/proto"
+	poll "event-driven/proto/poll"
 	"time"
 
 	"github.com/redis/go-redis/v9"

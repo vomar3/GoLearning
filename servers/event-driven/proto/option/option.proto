@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package option;
+
+option go_package = "event-driven/proto/gen/option;option";
+
+import "google/protobuf/empty.proto";
+
+service OptionService {
+    rpc CreateOption(CreateOptionRequest) returns (CreateOptionResponse);
+    rpc ListOptions(ListOptionsRequest) returns (ListOptionsResponse);
+}
+
+message Option {
+    string id = 1;
+    string poll_id = 2;
+    string text = 3;
+    int64 vote_count = 4;
+}
+
+message CreateOptionRequest {
+    string poll_id = 1;
+    string text = 2;
+}
+
+message CreateOptionResponse {
+    string id = 1;
+}
+
+message ListOptionsRequest {
+    string poll_id = 1; 
+}
+
+message ListOptionsResponse {
+    repeated Option options = 1;
+}
