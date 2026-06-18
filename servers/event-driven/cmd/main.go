@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"event-driven/internal/api/grpc"
 	"event-driven/internal/config"
+	"event-driven/internal/redis"
 	"event-driven/internal/repository"
 	"event-driven/internal/storage"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 func main() {
 	op := "main"
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	ctx := context.Background()
 
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("Error loading .env file")
@@ -58,8 +61,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	rds, err := redis.NewRedisClient(cfg, ctx)
+	if err != nil {
+		logger.Error("failed to connect to redis", slog.String("error", err.Error()), slog.String("op", op))
+		os.Exit(1)
+	}
+
+	logger.Info("connection to redis was successfully", slog.String("op", op))
+	defer rds.Close()
+
 	repo := repository.NewPollRepository(db)
-	pollServer := grpc.NewPollServer(repo)
+	pollServer := grpc.NewPollServer(repo, rds)
 	// create gRPC-server
 	grpcServer := grpcserver.NewServer()
 	// registration

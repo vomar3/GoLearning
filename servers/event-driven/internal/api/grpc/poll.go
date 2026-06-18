@@ -4,20 +4,25 @@ import (
 	"context"
 	"event-driven/internal/models"
 	poll "event-driven/proto"
+	"time"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type PollServer struct {
 	poll.UnimplementedPollServiceServer
-	repo models.PollRepository
+	repo  models.PollRepository
+	cache *redis.Client
 }
 
-func NewPollServer(repo models.PollRepository) *PollServer {
+func NewPollServer(repo models.PollRepository, cache *redis.Client) *PollServer {
 	return &PollServer{
-		repo: repo,
+		repo:  repo,
+		cache: cache,
 	}
 }
 
@@ -42,6 +47,17 @@ func (s *PollServer) CreatePoll(ctx context.Context, req *poll.CreatePollRequest
 func (s *PollServer) GetPoll(ctx context.Context, req *poll.GetPollRequest) (*poll.GetPollResponse, error) {
 	id := req.Id
 
+	// trying to get from cache
+	key := "poll:" + id
+	val, err := s.cache.Get(ctx, key).Result()
+	// the key exists
+	if err == nil {
+		pollMsg := &poll.Poll{}
+		if err := protojson.Unmarshal([]byte(val), pollMsg); err == nil {
+			return &poll.GetPollResponse{Poll: pollMsg}, nil
+		}
+	}
+
 	gotPoll, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "GetPoll: failed to get poll: %v", err)
@@ -55,6 +71,13 @@ func (s *PollServer) GetPoll(ctx context.Context, req *poll.GetPollRequest) (*po
 			IsActive:    gotPoll.IsActive,
 			CreatedAt:   gotPoll.CreatedAt.String(),
 		},
+	}
+
+	// puts a message into redis
+	pollMsg := response.Poll
+	jsonBytes, err := protojson.Marshal(pollMsg)
+	if err == nil {
+		_ = s.cache.Set(ctx, key, string(jsonBytes), 5*time.Minute).Err()
 	}
 
 	return response, nil
@@ -79,6 +102,10 @@ func (s *PollServer) UpdatePoll(ctx context.Context, req *poll.UpdatePollRequest
 		},
 	}
 
+	// Invalidation: we need to delete old cache
+	key := "poll" + id
+	_ = s.cache.Del(ctx, key).Err()
+
 	return response, nil
 }
 
@@ -89,6 +116,10 @@ func (s *PollServer) DeletePoll(ctx context.Context, req *poll.DeletePollRequest
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "DeletePoll: failed to delete poll: %v", err)
 	}
+
+	// delete cache
+	key := "poll" + id
+	_ = s.cache.Del(ctx, key).Err()
 
 	return nil, nil
 }
