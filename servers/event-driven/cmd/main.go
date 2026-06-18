@@ -17,6 +17,7 @@ import (
 
 	option "event-driven/proto/option"
 	poll "event-driven/proto/poll"
+	"event-driven/proto/vote"
 
 	"github.com/joho/godotenv"
 	grpcserver "google.golang.org/grpc"
@@ -81,6 +82,10 @@ func main() {
 	optionRepo := repository.NewOptionRepository(db)
 	optionServer := grpc.NewOptionServer(optionRepo)
 	option.RegisterOptionServiceServer(grpcServer, optionServer)
+
+	voteRepo := repository.NewVoteRepository(db)
+	voteServer := grpc.NewVoteServer(voteRepo)
+	vote.RegisterVoteServiceServer(grpcServer, voteServer)
 
 	// for grpcurl
 	reflection.Register(grpcServer)

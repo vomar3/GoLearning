@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package vote;
+
+option go_package = "event-driven/proto/gen/vote;vote";
+
+import "google/protobuf/empty.proto";
+
+service VoteService {
+    rpc CastVote(CastVoteRequest) returns (google.protobuf.Empty);
+}
+
+message CastVoteRequest {
+    string poll_id = 1;
+    string option_id = 2;
+    string user_id = 3;
+}

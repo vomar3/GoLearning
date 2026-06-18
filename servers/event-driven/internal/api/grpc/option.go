@@ -21,6 +21,10 @@ func NewOptionServer(repo models.OptionRepository) *OptionServer {
 }
 
 func (s *OptionServer) CreateOption(ctx context.Context, req *option.CreateOptionRequest) (*option.CreateOptionResponse, error) {
+	if req == nil || req.PollId == "" || req.Text == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "CreateOption: poll_id, text are required")
+	}
+
 	poll_id, text := req.PollId, req.Text
 
 	created, err := s.repo.Create(ctx, poll_id, text)
@@ -36,6 +40,10 @@ func (s *OptionServer) CreateOption(ctx context.Context, req *option.CreateOptio
 }
 
 func (s *OptionServer) ListOptions(ctx context.Context, req *option.ListOptionsRequest) (*option.ListOptionsResponse, error) {
+	if req == nil || req.PollId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "ListOptions: poll_id is required")
+	}
+
 	poll_id := req.PollId
 
 	listed, err := s.repo.ListOptions(ctx, poll_id)

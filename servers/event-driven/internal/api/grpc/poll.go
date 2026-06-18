@@ -28,6 +28,10 @@ func NewPollServer(repo models.PollRepository, cache *redis.Client) *PollServer 
 
 // gRPC method CreatePoll
 func (s *PollServer) CreatePoll(ctx context.Context, req *poll.CreatePollRequest) (*poll.CreatePollResponse, error) {
+	if req == nil || req.Title == "" || req.Description == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "CreatePoll: title, description are required")
+	}
+
 	// proto struct
 	title, description := req.Title, req.Description
 
@@ -45,6 +49,10 @@ func (s *PollServer) CreatePoll(ctx context.Context, req *poll.CreatePollRequest
 }
 
 func (s *PollServer) GetPoll(ctx context.Context, req *poll.GetPollRequest) (*poll.GetPollResponse, error) {
+	if req == nil || req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "GetPoll: id is required")
+	}
+
 	id := req.Id
 
 	// trying to get from cache
@@ -84,6 +92,10 @@ func (s *PollServer) GetPoll(ctx context.Context, req *poll.GetPollRequest) (*po
 }
 
 func (s *PollServer) UpdatePoll(ctx context.Context, req *poll.UpdatePollRequest) (*poll.UpdatePollResponse, error) {
+	if req == nil || req.Title == "" || req.Description == "" || req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "UpdatePoll: title, description, id are required")
+	}
+
 	id, title, description := req.Id, req.Title, req.Description
 	isActive := req.IsActive
 
@@ -110,6 +122,10 @@ func (s *PollServer) UpdatePoll(ctx context.Context, req *poll.UpdatePollRequest
 }
 
 func (s *PollServer) DeletePoll(ctx context.Context, req *poll.DeletePollRequest) (*emptypb.Empty, error) {
+	if req == nil || req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "DeletePoll: id is required")
+	}
+
 	id := req.Id
 
 	err := s.repo.Delete(ctx, id)
@@ -125,6 +141,10 @@ func (s *PollServer) DeletePoll(ctx context.Context, req *poll.DeletePollRequest
 }
 
 func (s *PollServer) ListPoll(ctx context.Context, req *poll.ListPollRequest) (*poll.ListPollResponse, error) {
+	if req == nil || req.Limit <= 0 || req.Offset <= 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "ListPoll: limit, offset are required")
+	}
+
 	limit, offset := req.Limit, req.Offset
 	onlyActive := req.OnlyActive
 
