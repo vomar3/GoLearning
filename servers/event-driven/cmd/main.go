@@ -84,7 +84,7 @@ func main() {
 	option.RegisterOptionServiceServer(grpcServer, optionServer)
 
 	voteRepo := repository.NewVoteRepository(db)
-	voteServer := grpc.NewVoteServer(voteRepo)
+	voteServer := grpc.NewVoteServer(voteRepo, optionRepo, rds)
 	vote.RegisterVoteServiceServer(grpcServer, voteServer)
 
 	// for grpcurl

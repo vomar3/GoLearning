@@ -82,6 +82,170 @@ func (x *CastVoteRequest) GetUserId() string {
 	return ""
 }
 
+type LeaderboardEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OptionId      string                 `protobuf:"bytes,1,opt,name=option_id,json=optionId,proto3" json:"option_id,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Votes         int64                  `protobuf:"varint,3,opt,name=votes,proto3" json:"votes,omitempty"`
+	Rank          int32                  `protobuf:"varint,4,opt,name=rank,proto3" json:"rank,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaderboardEntry) Reset() {
+	*x = LeaderboardEntry{}
+	mi := &file_vote_vote_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaderboardEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaderboardEntry) ProtoMessage() {}
+
+func (x *LeaderboardEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_vote_vote_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaderboardEntry.ProtoReflect.Descriptor instead.
+func (*LeaderboardEntry) Descriptor() ([]byte, []int) {
+	return file_vote_vote_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *LeaderboardEntry) GetOptionId() string {
+	if x != nil {
+		return x.OptionId
+	}
+	return ""
+}
+
+func (x *LeaderboardEntry) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *LeaderboardEntry) GetVotes() int64 {
+	if x != nil {
+		return x.Votes
+	}
+	return 0
+}
+
+func (x *LeaderboardEntry) GetRank() int32 {
+	if x != nil {
+		return x.Rank
+	}
+	return 0
+}
+
+type SubscribeLeaderboardRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
+	TopN          int64                  `protobuf:"varint,2,opt,name=top_n,json=topN,proto3" json:"top_n,omitempty"` // top n first options
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubscribeLeaderboardRequest) Reset() {
+	*x = SubscribeLeaderboardRequest{}
+	mi := &file_vote_vote_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubscribeLeaderboardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubscribeLeaderboardRequest) ProtoMessage() {}
+
+func (x *SubscribeLeaderboardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_vote_vote_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubscribeLeaderboardRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeLeaderboardRequest) Descriptor() ([]byte, []int) {
+	return file_vote_vote_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SubscribeLeaderboardRequest) GetPollId() string {
+	if x != nil {
+		return x.PollId
+	}
+	return ""
+}
+
+func (x *SubscribeLeaderboardRequest) GetTopN() int64 {
+	if x != nil {
+		return x.TopN
+	}
+	return 0
+}
+
+type LeaderboardUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*LeaderboardEntry    `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaderboardUpdate) Reset() {
+	*x = LeaderboardUpdate{}
+	mi := &file_vote_vote_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaderboardUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaderboardUpdate) ProtoMessage() {}
+
+func (x *LeaderboardUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_vote_vote_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaderboardUpdate.ProtoReflect.Descriptor instead.
+func (*LeaderboardUpdate) Descriptor() ([]byte, []int) {
+	return file_vote_vote_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *LeaderboardUpdate) GetEntries() []*LeaderboardEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
 var File_vote_vote_proto protoreflect.FileDescriptor
 
 const file_vote_vote_proto_rawDesc = "" +
@@ -90,9 +254,20 @@ const file_vote_vote_proto_rawDesc = "" +
 	"\x0fCastVoteRequest\x12\x17\n" +
 	"\apoll_id\x18\x01 \x01(\tR\x06pollId\x12\x1b\n" +
 	"\toption_id\x18\x02 \x01(\tR\boptionId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId2H\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"m\n" +
+	"\x10LeaderboardEntry\x12\x1b\n" +
+	"\toption_id\x18\x01 \x01(\tR\boptionId\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x14\n" +
+	"\x05votes\x18\x03 \x01(\x03R\x05votes\x12\x12\n" +
+	"\x04rank\x18\x04 \x01(\x05R\x04rank\"K\n" +
+	"\x1bSubscribeLeaderboardRequest\x12\x17\n" +
+	"\apoll_id\x18\x01 \x01(\tR\x06pollId\x12\x13\n" +
+	"\x05top_n\x18\x02 \x01(\x03R\x04topN\"E\n" +
+	"\x11LeaderboardUpdate\x120\n" +
+	"\aentries\x18\x01 \x03(\v2\x16.vote.LeaderboardEntryR\aentries2\x9e\x01\n" +
 	"\vVoteService\x129\n" +
-	"\bCastVote\x12\x15.vote.CastVoteRequest\x1a\x16.google.protobuf.EmptyB\"Z event-driven/proto/gen/vote;voteb\x06proto3"
+	"\bCastVote\x12\x15.vote.CastVoteRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
+	"\x14SubscribeLeaderboard\x12!.vote.SubscribeLeaderboardRequest\x1a\x17.vote.LeaderboardUpdate0\x01B\"Z event-driven/proto/gen/vote;voteb\x06proto3"
 
 var (
 	file_vote_vote_proto_rawDescOnce sync.Once
@@ -106,19 +281,25 @@ func file_vote_vote_proto_rawDescGZIP() []byte {
 	return file_vote_vote_proto_rawDescData
 }
 
-var file_vote_vote_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_vote_vote_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_vote_vote_proto_goTypes = []any{
-	(*CastVoteRequest)(nil), // 0: vote.CastVoteRequest
-	(*emptypb.Empty)(nil),   // 1: google.protobuf.Empty
+	(*CastVoteRequest)(nil),             // 0: vote.CastVoteRequest
+	(*LeaderboardEntry)(nil),            // 1: vote.LeaderboardEntry
+	(*SubscribeLeaderboardRequest)(nil), // 2: vote.SubscribeLeaderboardRequest
+	(*LeaderboardUpdate)(nil),           // 3: vote.LeaderboardUpdate
+	(*emptypb.Empty)(nil),               // 4: google.protobuf.Empty
 }
 var file_vote_vote_proto_depIdxs = []int32{
-	0, // 0: vote.VoteService.CastVote:input_type -> vote.CastVoteRequest
-	1, // 1: vote.VoteService.CastVote:output_type -> google.protobuf.Empty
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: vote.LeaderboardUpdate.entries:type_name -> vote.LeaderboardEntry
+	0, // 1: vote.VoteService.CastVote:input_type -> vote.CastVoteRequest
+	2, // 2: vote.VoteService.SubscribeLeaderboard:input_type -> vote.SubscribeLeaderboardRequest
+	4, // 3: vote.VoteService.CastVote:output_type -> google.protobuf.Empty
+	3, // 4: vote.VoteService.SubscribeLeaderboard:output_type -> vote.LeaderboardUpdate
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_vote_vote_proto_init() }
@@ -132,7 +313,7 @@ func file_vote_vote_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_vote_vote_proto_rawDesc), len(file_vote_vote_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

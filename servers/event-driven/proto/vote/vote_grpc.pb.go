@@ -20,7 +20,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	VoteService_CastVote_FullMethodName = "/vote.VoteService/CastVote"
+	VoteService_CastVote_FullMethodName             = "/vote.VoteService/CastVote"
+	VoteService_SubscribeLeaderboard_FullMethodName = "/vote.VoteService/SubscribeLeaderboard"
 )
 
 // VoteServiceClient is the client API for VoteService service.
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type VoteServiceClient interface {
 	CastVote(ctx context.Context, in *CastVoteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SubscribeLeaderboard(ctx context.Context, in *SubscribeLeaderboardRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LeaderboardUpdate], error)
 }
 
 type voteServiceClient struct {
@@ -48,11 +50,31 @@ func (c *voteServiceClient) CastVote(ctx context.Context, in *CastVoteRequest, o
 	return out, nil
 }
 
+func (c *voteServiceClient) SubscribeLeaderboard(ctx context.Context, in *SubscribeLeaderboardRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LeaderboardUpdate], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &VoteService_ServiceDesc.Streams[0], VoteService_SubscribeLeaderboard_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeLeaderboardRequest, LeaderboardUpdate]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VoteService_SubscribeLeaderboardClient = grpc.ServerStreamingClient[LeaderboardUpdate]
+
 // VoteServiceServer is the server API for VoteService service.
 // All implementations must embed UnimplementedVoteServiceServer
 // for forward compatibility.
 type VoteServiceServer interface {
 	CastVote(context.Context, *CastVoteRequest) (*emptypb.Empty, error)
+	SubscribeLeaderboard(*SubscribeLeaderboardRequest, grpc.ServerStreamingServer[LeaderboardUpdate]) error
 	mustEmbedUnimplementedVoteServiceServer()
 }
 
@@ -65,6 +87,9 @@ type UnimplementedVoteServiceServer struct{}
 
 func (UnimplementedVoteServiceServer) CastVote(context.Context, *CastVoteRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method CastVote not implemented")
+}
+func (UnimplementedVoteServiceServer) SubscribeLeaderboard(*SubscribeLeaderboardRequest, grpc.ServerStreamingServer[LeaderboardUpdate]) error {
+	return status.Error(codes.Unimplemented, "method SubscribeLeaderboard not implemented")
 }
 func (UnimplementedVoteServiceServer) mustEmbedUnimplementedVoteServiceServer() {}
 func (UnimplementedVoteServiceServer) testEmbeddedByValue()                     {}
@@ -105,6 +130,17 @@ func _VoteService_CastVote_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VoteService_SubscribeLeaderboard_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeLeaderboardRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(VoteServiceServer).SubscribeLeaderboard(m, &grpc.GenericServerStream[SubscribeLeaderboardRequest, LeaderboardUpdate]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type VoteService_SubscribeLeaderboardServer = grpc.ServerStreamingServer[LeaderboardUpdate]
+
 // VoteService_ServiceDesc is the grpc.ServiceDesc for VoteService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -117,6 +153,12 @@ var VoteService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VoteService_CastVote_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribeLeaderboard",
+			Handler:       _VoteService_SubscribeLeaderboard_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "vote/vote.proto",
 }
